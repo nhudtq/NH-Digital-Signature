@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RSA Signature Generator</title>
+    <link href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+</head>
+<body>
+    <center><h2>Phần mềm chữ ký số ứng dụng RSA</h2></center>
+    <div class="container mt-5">
+        <div class="row">
+            <div class="col">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">[Virtual CA] Tạo khóa</h3>
+                        
+                    </div>
+                    <div class="card-body">
+                        <label style="font-size:12px" for="ca_description">CA sẽ tạo chứng thư số, bao gồm thông tin của người được cấp<br>và cặp khoá bí mật, khoá công khai</label>  
+                        <select id="key_size" class="form-control mb-3">
+                            <option value="128">128 bits</option>
+                            <option value="256">256 bits</option>
+                            <option value="512">512 bits</option>
+                            <option value="1024">1024 bits</option>
+                            <option value="2048">2048 bits</option>
+                            <option value="4096">4096 bits</option>
+                        </select>
+                        <div class="form-group">
+                            <label for="public_key">Public key</label>
+                            <textarea id="public_key" rows="3" class="form-control" ></textarea>
+                            <button onclick="downloadPublicKey()" class="btn btn-secondary mt-2 float-right"><i class="fas fa-download"></i></button>
+                        </div>
+                        <div class="form-group">
+                            <label for="private_key">Private key</label>
+                            <textarea id="private_key" rows="3" class="form-control" ></textarea>
+                            <button onclick="downloadPrivateKey()" class="btn btn-secondary mt-2 float-right"><i class="fas fa-download"></i></button>
+                        </div>
+                        <button onclick="generateKey()" class="btn btn-primary">Tạo khóa</button>
+                    </div>
+                </div>
+            </div>
+            <div class="col">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Người gửi</h3>
+                    </div>
+                    <div class="card-body">
+                        <input type="file" id="file_to_sign" class="form-control mb-3">
+                        <div class="form-group">
+                            <label for="sha_1">Băm SHA1</label>
+                            <textarea id="sha_1" rows="3"  class="form-control" readonly></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label for="signature">Chữ ký</label>
+                            <label style="font-size:12px" for="signer_info"><i>Người gửi có khoá bí mật được CA cấp trong chứng thư số</i></label>
+                            <textarea id="signature" rows="3"  class="form-control"></textarea>
+                            <button onclick="downloadSignature()" class="btn btn-secondary mt-2 float-right"><i class="fas fa-download"></i></button>
+                        </div>
+                        <br><br>
+                        <button onclick="calculateHashAndSign()" class="btn btn-primary">Tạo chữ ký</button>
+                    </div>
+                </div>
+            </div>
+            <div class="col">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Người nhận</h3>
+                    </div>
+                    <div class="card-body">
+                        <input type="file" id="file_to_verify" class="form-control mb-3">
+                        <div class="form-group">
+                            <label for="sha_1_2">Băm SHA1</label>
+                            <textarea id="sha_1_2" rows="2"  class="form-control" readonly></textarea>
+                        </div>
+                          <div class="form-group">
+                            <label for="sha_1_2">Giải mã chữ ký</label>
+                            <br>
+                            <label style="font-size:12px" for="signature"><i>Người nhận có khoá công khai của người gửi</i></label>
+                            <textarea id="decode_signature" rows="2"  class="form-control" readonly></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label for="verification_result">Kết quả</label>
+                            <input style="color:red;" type="text" id="verification_result" class="form-control" readonly>
+                        </div>
+                        <button onclick="verifySignature()" class="btn btn-primary">Kiểm tra chữ ký</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function generateKey() {
+            var key_size = document.getElementById("key_size").value;
+            var form_data = new FormData();
+            form_data.append("key_size", key_size);
+
+            fetch("/generate_rsa_key/", {
+                method: 'POST',
+                body: form_data,
+                headers: {
+                    'X-CSRFToken': getCookie('csrftoken')
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById("public_key").value = data.public_key;
+                document.getElementById("private_key").value = data.private_key;
+            })
+            .catch(error => console.error('Error:', error));
+        }
+
+        function calculateHashAndSign() {
+            var file_to_sign = document.getElementById("file_to_sign").files[0];
+            var private_key = document.getElementById("private_key").value;
+
+            if (!private_key ) {
+                alert("Vui lòng tạo khóa.");
+                return;
+            }
+            if (!file_to_sign ) {
+                alert("Vui lòng chọn file.");
+                return;
+            }
+
+            var form_data = new FormData();
+            form_data.append("file_sender", file_to_sign);
+            form_data.append("private_key", private_key);
+            fetch("/calculate_hash_and_sign/", {
+                method: 'POST',
+                body: form_data,
+                headers: {
+                    'X-CSRFToken': getCookie('csrftoken')
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById("signature").value =  data.signature;
+                document.getElementById("sha_1").value =  data.hash_sha1;
+            })
+            .catch(error => console.error('Error:', error));
+        }
+
+        function verifySignature() {
+            var received_public_key = document.getElementById("public_key").value;
+            var file_to_verify = document.getElementById("file_to_verify").files[0];
+            var received_signature = document.getElementById("signature").value;
+
+            if (!private_key ) {
+                alert("Vui lòng tạo khóa.");
+                return;
+            }
+
+            if (!file_to_verify ) {
+                alert("Vui lòng chọn file.");
+                return;
+            }
+            if (!received_signature ) {
+                alert("Chưa có chữ ký số.");
+                return;
+            }
+
+            var form_data = new FormData();
+            form_data.append("received_public_key", received_public_key);
+            form_data.append("file_to_verify", file_to_verify);
+            form_data.append("received_signature", received_signature);
+
+            fetch("/verify_signature/", {
+                method: 'POST',
+                body: form_data,
+                headers: {
+                    'X-CSRFToken': getCookie('csrftoken')
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById("verification_result").value = data.result;
+                document.getElementById("sha_1_2").value =  data.hash_sha1;
+                document.getElementById("decode_signature").value =  data.decode_signature;
+            })
+            .catch(error => console.error('Error:', error));
+        }
+
+        function downloadPublicKey() {
+            var publicKey = document.getElementById("public_key").value;
+            var element = document.createElement('a');
+            element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(publicKey));
+            element.setAttribute('download', 'public_key.pem');
+            element.style.display = 'none';
+            document.body.appendChild(element);
+            element.click();
+            document.body.removeChild(element);
+        }
+
+        function downloadPrivateKey() {
+            var privateKey = document.getElementById("private_key").value;
+            var element = document.createElement('a');
+            element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(privateKey));
+            element.setAttribute('download', 'private_key.pem');
+            element.style.display = 'none';
+            document.body.appendChild(element);
+            element.click();
+            document.body.removeChild(element);
+        }
+
+        function downloadSignature() {
+            var signature = document.getElementById("signature").value;
+            var element = document.createElement('a');
+            element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(signature));
+            element.setAttribute('download', 'signature.txt');
+            element.style.display = 'none';
+            document.body.appendChild(element);
+            element.click();
+            document.body.removeChild(element);
+        }
+
+        function getCookie(name) {
+            var cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                var cookies = document.cookie.split(';');
+                for (var i = 0; i < cookies.length; i++) {
+                    var cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+    </script>
+</body>
+</html>
