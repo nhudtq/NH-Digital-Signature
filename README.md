@@ -1,4 +1,5 @@
 Chia sẻ mã nguồn phần mềm Opensource chữ ký số
+License: ISC, vui lòng xem tab License
 
 **Chức năng:**
 - Tạo khoá
